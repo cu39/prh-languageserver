@@ -149,30 +149,33 @@ export class Handler {
 
         const { range, context } = params;
 
-        const actions: CodeAction[] = diffs.map(diff => {
-            const newText = diff.newText || "??";
-            const textEdit: TextEdit = {
-                range,
-                newText
-            };
-            const commandParams: ReplaceCommandParams = {
-                uri: textDocument.uri,
-                version: textDocument.version,
-                textEdit,
-            };
-            const title = `→ ${diff.newText || "??"}`;
-            const command = Command.create(
-                title,
-                "replace",
-                commandParams
-            );
-            const action = CodeAction.create(
-                title,
-                command,
-                CodeActionKind.QuickFix
-            );
-            action.diagnostics = context.diagnostics;
-            return action;
+        const actions: CodeAction[] = [];
+        diffs.forEach(diff => {
+            const newTexts = diff.options.length < 1 ? ["??"] : diff.options;
+            newTexts.forEach((newText: string) => {
+                const textEdit: TextEdit = {
+                    range,
+                    newText,
+                };
+                const commandParams: ReplaceCommandParams = {
+                    uri: textDocument.uri,
+                    version: textDocument.version,
+                    textEdit,
+                };
+                const title = `→ ${newText || "??"}`;
+                const command = Command.create(
+                    title,
+                    "replace",
+                    commandParams
+                );
+                const action = CodeAction.create(
+                    title,
+                    command,
+                    CodeActionKind.QuickFix
+                );
+                action.diagnostics = context.diagnostics;
+                actions.push(action);
+            });
         });
 
         return actions;
@@ -284,6 +287,8 @@ export class Handler {
             diff.apply(textDocument.getText())
             if (diff.rule && diff.rule.raw && diff.rule.raw.prh) {
                 message = `→${diff.newText || "??"} ${diff.rule.raw.prh}`;
+            } else if (diff.options && diff.options.length > 0) {
+                message = `→${diff.options.join(' ')}`;
             } else {
                 message = `→${diff.newText || "??"}`;
             }
@@ -369,6 +374,15 @@ export class Handler {
     }
 
     getTextEditFromDiff(textDocument: TextDocument, diff: Diff): TextEdit {
+        if (diff.options && diff.options.length > 1) {
+            return {
+                range: {
+                    start: textDocument.positionAt(0),
+                    end: textDocument.positionAt(0),
+                },
+                newText: '',
+            }
+        }
         const start = textDocument.positionAt(diff.index);
         const end = textDocument.positionAt(diff.tailIndex);
         return {
